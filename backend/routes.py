@@ -1,10 +1,13 @@
 """HTTP routes for frontier feed, event actions, and orchestrator triggers."""
 
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel
 
 from models import EventListResponse, PolymarketEvent
 from services.ingestion import ingestion_service
+from services.apify_service import apify_service
+from services.orchestrator import orchestrator_service
 
 router = APIRouter()
 
@@ -113,3 +116,159 @@ async def force_refresh():
         "events_fetched": len(events),
         "spike_events": spike_count
     }
+
+
+class NewsScrapeRequest(BaseModel):
+    """Request model for news scraping."""
+    query: str
+    max_items: int = 10
+    language: str = "US:en"
+    time_range: str = "1h"
+    fetch_article_details: bool = True
+
+
+class NewsScrapeResponse(BaseModel):
+    """Response model for news scraping."""
+    status: str
+    query: str
+    item_count: int
+    items: List[Dict[str, Any]]
+
+
+@router.post("/news/scrape", response_model=NewsScrapeResponse)
+async def scrape_news(request: NewsScrapeRequest):
+    """
+    Scrape Google News using Apify's Google News scraper
+    
+    This endpoint allows you to search for news articles related to specific topics,
+    which can be useful for getting context around Polymarket events.
+    """
+    try:
+        items = await apify_service.scrape_google_news(
+            query=request.query,
+            max_items=request.max_items,
+            language=request.language,
+            time_range=request.time_range,
+            fetch_article_details=request.fetch_article_details
+        )
+        
+        return NewsScrapeResponse(
+            status="success",
+            query=request.query,
+            item_count=len(items),
+            items=items
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to scrape news: {str(e)}"
+        )
+
+
+@router.get("/news/scrape")
+async def scrape_news_get(
+    query: str = Query(..., description="Search query for news"),
+    max_items: int = Query(10, ge=1, le=50, description="Maximum number of articles"),
+    language: str = Query("US:en", description="Language and region"),
+    time_range: str = Query("1h", description="Time range (1h, 1d, 1w)"),
+    fetch_article_details: bool = Query(True, description="Fetch full article content")
+):
+    """
+    Scrape Google News using GET method (alternative to POST)
+    """
+    try:
+        items = await apify_service.scrape_google_news(
+            query=query,
+            max_items=max_items,
+            language=language,
+            time_range=time_range,
+            fetch_article_details=fetch_article_details
+        )
+        
+        return {
+            "status": "success",
+            "query": query,
+            "item_count": len(items),
+            "items": items
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to scrape news: {str(e)}"
+        )
+
+
+@router.get("/events/{event_id}/detail")
+async def get_event_detail(
+    event_id: str,
+    include_news: bool = Query(True, description="Include news articles"),
+    news_max_items: int = Query(6, ge=1, le=20, description="Maximum news articles"),
+    news_time_range: str = Query("1d", description="News time range (1h, 1d, 1w)")
+):
+    """
+    Get detailed analysis for a specific event including news articles.
+    
+    This endpoint triggers the orchestrator to fetch news articles and other
+    analysis for the specified Polymarket event.
+    """
+    # Get the event
+    event = ingestion_service.events.get(event_id)
+    
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+    
+    try:
+        # Trigger orchestration
+        result = await orchestrator_service.orchestrate_event_detail(
+            event=event,
+            include_news=include_news,
+            news_max_items=news_max_items,
+            news_time_range=news_time_range
+        )
+        
+        return result
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze event: {str(e)}"
+        )
+
+
+@router.get("/events/{event_id}/news")
+async def get_event_news(
+    event_id: str,
+    max_items: int = Query(6, ge=1, le=20, description="Maximum news articles"),
+    time_range: str = Query("1d", description="Time range (1h, 1d, 1w)")
+):
+    """
+    Get news articles for a specific event.
+    """
+    # Get the event
+    event = ingestion_service.events.get(event_id)
+    
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+    
+    try:
+        # Get news for the event
+        news = await orchestrator_service.get_event_news(
+            event=event,
+            max_items=max_items,
+            time_range=time_range
+        )
+        
+        return {
+            "event_id": event_id,
+            "event_title": event.question,
+            "news_count": len(news),
+            "news": news
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch news: {str(e)}"
+        )
