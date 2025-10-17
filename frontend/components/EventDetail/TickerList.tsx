@@ -84,7 +84,7 @@ export function TickerList({ eventId, event }: TickerListProps) {
       <div className="space-y-4">
         <div>
           <h3 className="text-xl font-bold mb-2">Related Stock Tickers</h3>
-          <p className="text-sm text-slate-400 flex items-center gap-2">
+          <p className="text-sm text-foreground flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
             GPT is analyzing market correlations...
           </p>
@@ -116,7 +116,7 @@ export function TickerList({ eventId, event }: TickerListProps) {
         <Card className="border-red-500/50">
           <CardContent className="p-6 text-center">
             <p className="text-red-400">{error}</p>
-            <p className="text-sm text-slate-500 mt-2">
+            <p className="text-sm text-foreground/70 mt-2">
               Make sure OPENROUTER_API_KEY is set in frontend/.env.local
             </p>
           </CardContent>
@@ -132,7 +132,7 @@ export function TickerList({ eventId, event }: TickerListProps) {
           <h3 className="text-xl font-bold mb-2">Related Stock Tickers</h3>
         </div>
         <Card className="border-dashed">
-          <CardContent className="p-6 text-center text-slate-500">
+          <CardContent className="p-6 text-center text-foreground/70">
             No ticker suggestions available
           </CardContent>
         </Card>
@@ -144,7 +144,7 @@ export function TickerList({ eventId, event }: TickerListProps) {
     <div className="space-y-4">
       <div>
         <h3 className="text-xl font-bold mb-2">Related Stock Tickers</h3>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-foreground">
           GPT-5-mini identified {tickers.length} stocks that could be affected by this event
         </p>
       </div>
@@ -159,7 +159,7 @@ export function TickerList({ eventId, event }: TickerListProps) {
                     {ticker.symbol}
                     {getDirectionIcon(ticker.direction)}
                   </CardTitle>
-                  <p className="text-xs text-slate-400 mt-1">{ticker.name}</p>
+                  <p className="text-xs text-foreground/80 mt-1">{ticker.name}</p>
                 </div>
 
                 <div className="flex flex-col items-end gap-1">
@@ -178,7 +178,7 @@ export function TickerList({ eventId, event }: TickerListProps) {
               <TickerChart symbol={ticker.symbol} eventTimestamp={event.detectedAt} />
 
               {/* Rationale */}
-              <p className="text-xs text-slate-400 line-clamp-2">{ticker.rationale}</p>
+              <p className="text-xs text-foreground line-clamp-2">{ticker.rationale}</p>
             </CardContent>
           </Card>
         ))}

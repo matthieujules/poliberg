@@ -1,8 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { NewsCard } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { ExternalLink } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -11,6 +20,9 @@ interface NewsDigestProps {
 }
 
 export function NewsDigest({ news }: NewsDigestProps) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState<NewsCard | null>(null);
+
   // Sort by relevance score descending, then by publishedAt descending
   const sortedNews = [...news].sort((a, b) => {
     if (a.relevanceScore !== b.relevanceScore) {
@@ -47,7 +59,7 @@ export function NewsDigest({ news }: NewsDigestProps) {
     <div className="space-y-4">
       <div>
         <h3 className="text-xl font-bold mb-2">Related News</h3>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-slate-300">
           {sortedNews.length} recent articles related to this event
         </p>
       </div>
@@ -57,12 +69,15 @@ export function NewsDigest({ news }: NewsDigestProps) {
           <Card
             key={article.id}
             className="cursor-pointer hover:bg-slate-900/50 transition-colors"
-            onClick={() => window.open(article.url, "_blank", "noopener,noreferrer")}
+            onClick={() => {
+              setActive(article);
+              setOpen(true);
+            }}
           >
             <CardContent className="p-4">
               <div className="space-y-2">
                 {/* Header: Source + Time */}
-                <div className="flex items-center gap-2 text-xs text-slate-400">
+                <div className="flex items-center gap-2 text-xs text-slate-300">
                   <span className="font-medium">{article.source}</span>
                   <span>•</span>
                   <span title={format(new Date(article.publishedAt), "PPpp")}>
@@ -77,7 +92,7 @@ export function NewsDigest({ news }: NewsDigestProps) {
                 </h4>
 
                 {/* Snippet */}
-                <p className="text-xs text-slate-300 line-clamp-3">{article.snippet}</p>
+                <p className="text-xs text-slate-200 line-clamp-3">{article.snippet}</p>
 
                 {/* Footer: Sentiment + Relevance */}
                 <div className="flex items-center justify-between">
@@ -94,6 +109,48 @@ export function NewsDigest({ news }: NewsDigestProps) {
           </Card>
         ))}
       </div>
+
+      {/* Article preview modal */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          {active && (
+            <div className="space-y-4">
+              <DialogHeader>
+                <DialogTitle className="text-base sm:text-lg line-clamp-3">
+                  {active.title}
+                </DialogTitle>
+                <DialogDescription>
+                  <span className="font-medium text-slate-300">
+                    {active.source}
+                  </span>
+                  <span className="mx-2">•</span>
+                  <span>
+                    {formatDistanceToNow(new Date(active.publishedAt), { addSuffix: true })}
+                  </span>
+                </DialogDescription>
+              </DialogHeader>
+              <div className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">
+                {active.snippet || "No preview available."}
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    window.open(active.url, "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  Open Original
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -56,7 +56,7 @@ export function EventDetailView({ eventId, onClose }: EventDetailViewProps) {
           </div>
           <div className="mt-4">
             <h1 className="text-2xl font-bold text-slate-50">{event.title}</h1>
-            <p className="text-base text-slate-300 mt-2">{event.description}</p>
+            <p className="text-base text-slate-200 mt-2">{event.description}</p>
           </div>
         </div>
       </header>

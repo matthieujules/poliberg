@@ -39,7 +39,7 @@ export function EventCard({ event, onSelect }: EventCardProps) {
             <div className="text-3xl font-bold text-white mb-1">
               {(event.probability * 100).toFixed(0)}%
             </div>
-            <div className="text-xs text-slate-400">Chance</div>
+            <div className="text-xs text-foreground/80">Chance</div>
             {hasVolumeSpike && (
               <Badge variant="outline" className="mt-2 text-xs text-amber-400 border-amber-400/50">
                 <Zap className="w-3 h-3 mr-1" />
@@ -56,16 +56,16 @@ export function EventCard({ event, onSelect }: EventCardProps) {
             </h3>
 
             {/* Description */}
-            <p className="text-sm text-slate-400 mb-3 line-clamp-2 leading-relaxed">
+            <p className="text-sm text-foreground mb-3 line-clamp-2 leading-relaxed">
               {event.description}
             </p>
 
             {/* Stats */}
             <div className="flex items-center gap-4 text-xs">
-              <div className="flex items-center gap-1.5 text-slate-300">
+              <div className="flex items-center gap-1.5 text-foreground">
                 <Activity className="w-3.5 h-3.5" />
                 <span className="font-medium">{formatVolume(event.volume24hr)}</span>
-                <span className="text-slate-500">volume</span>
+                <span className="text-foreground/70">volume</span>
               </div>
 
               {event.oneDayPriceChange !== null && event.oneDayPriceChange !== 0 && (
@@ -89,7 +89,7 @@ export function EventCard({ event, onSelect }: EventCardProps) {
               )}
 
               {event.liquidityNum > 0 && (
-                <span className="text-slate-500">
+                <span className="text-foreground/70">
                   {formatVolume(event.liquidityNum)} liquidity
                 </span>
               )}

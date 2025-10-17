@@ -21,7 +21,7 @@ export function TickerGrid({ tickers, stockData, eventTimestamp }: TickerGridPro
     <div className="space-y-4">
       <div>
         <h3 className="text-xl font-bold mb-2">Related Stock Tickers</h3>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-foreground">
           {tickers.length} tickers potentially affected by this event
         </p>
       </div>
@@ -37,7 +37,7 @@ export function TickerGrid({ tickers, stockData, eventTimestamp }: TickerGridPro
                 <div className="flex items-start justify-between">
                   <div>
                     <h4 className="text-lg font-bold">{ticker.symbol}</h4>
-                    <p className="text-xs text-slate-400 line-clamp-1">{ticker.name}</p>
+                    <p className="text-xs text-foreground/80 line-clamp-1">{ticker.name}</p>
                   </div>
 
                   <Badge variant="outline" className="text-xs">
@@ -48,7 +48,7 @@ export function TickerGrid({ tickers, stockData, eventTimestamp }: TickerGridPro
 
               <CardContent className="space-y-3">
                 {/* Rationale */}
-                <p className="text-xs text-slate-300 line-clamp-2">{ticker.rationale}</p>
+                <p className="text-xs text-foreground line-clamp-2">{ticker.rationale}</p>
 
                 {/* Stock Price & Chart */}
                 {isLoading ? (
