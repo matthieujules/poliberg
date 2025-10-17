@@ -56,6 +56,11 @@ class PolymarketEvent(BaseModel):
             datetime: lambda v: v.isoformat()
         }
 
+    def model_dump(self, **kwargs):
+        """Override to always use field names (title) instead of aliases (question) in output"""
+        kwargs.setdefault('by_alias', False)
+        return super().model_dump(**kwargs)
+
 
 class EventListResponse(BaseModel):
     """Response for listing frontier events"""
