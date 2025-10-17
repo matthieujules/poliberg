@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Activity, Zap, Clock, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime, formatVolume, isRecentlyUpdated, getRecencyIntensity } from "@/lib/utils/time";
+import { VolumeSparkline } from "./VolumeSparkline";
 
 interface FrontierBannerProps {
   event: PolymarketEvent;
@@ -79,11 +80,21 @@ export function FrontierBanner({ event, onSelect }: FrontierBannerProps) {
 
             <h3 className="text-lg md:text-xl font-bold leading-tight">{event.title}</h3>
 
-            <div className="flex items-center gap-6 text-sm text-slate-400">
-              <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4" />
-                <span className="font-medium">{formatVolume(event.volume24hr)}</span>
-                <span className="text-xs">24h volume</span>
+            <div className="flex items-center gap-6 text-sm text-slate-400 flex-wrap">
+              {/* Volume sparkline preview */}
+              <div className="flex items-center gap-3">
+                <VolumeSparkline
+                  volume24hr={event.volume24hr}
+                  volume1wk={event.volume1wk}
+                  volume1mo={event.volume1mo}
+                />
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <Activity className="w-4 h-4" />
+                    <span className="font-medium">{formatVolume(event.volume24hr)}</span>
+                  </div>
+                  <span className="text-xs text-slate-500">24h volume</span>
+                </div>
               </div>
 
               {event.oneDayPriceChange !== null && (

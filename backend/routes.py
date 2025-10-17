@@ -3,12 +3,23 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from datetime import datetime
+import os
+import httpx
+from pydantic import BaseModel
 
-from models import EventListResponse, PolymarketEvent, ChangesResponse, TickerSuggestion
+from models import EventListResponse, PolymarketEvent, ChangesResponse, TickerSuggestion, PriceHistoryResponse
 from services.ingestion import ingestion_service
 from services.asset_mapper import asset_mapper_service
+from services.price_history import price_history_client
 
 router = APIRouter()
+
+# Senso.ai configuration
+SENSO_API_KEY = os.getenv("SENSO_API_KEY")
+SENSO_ORG_ID = os.getenv("SENSO_ORG_ID")
+
+class ChatRequest(BaseModel):
+    message: str
 
 
 @router.get("/events", response_model=EventListResponse)
@@ -176,3 +187,115 @@ async def toggle_event_lock(event_id: str):
     event.locked = not event.locked
 
     return {"id": event_id, "locked": event.locked}
+
+
+@router.get("/events/{event_id}/price-history", response_model=PriceHistoryResponse)
+async def get_event_price_history(
+    event_id: str,
+    interval: str = Query("1d", regex="^(1h|1d|1w|1m|max)$", description="Time interval for price history"),
+    outcome_index: int = Query(0, ge=0, description="Index of outcome/candidate to fetch (0 = first outcome)")
+):
+    """
+    Get price history for an event from Polymarket CLOB API
+
+    Returns historical probability data (price = probability 0-1) for the market.
+    For multi-outcome markets (elections, etc.), specify which outcome to fetch.
+
+    Args:
+        event_id: The event ID
+        interval: Time interval - valid values: '1h', '1d', '1w', '1m', 'max'
+        outcome_index: Which outcome to fetch (0 = first, 1 = second, etc.)
+
+    Returns:
+        Price history with timestamps and probabilities
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"[API] GET /api/events/{event_id}/price-history?interval={interval}&outcome_index={outcome_index}")
+
+    # Get the event
+    event = ingestion_service.events.get(event_id)
+
+    if not event:
+        logger.warning(f"[API] Event not found: {event_id}")
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    # Check if event has CLOB token IDs
+    if not event.clobTokenIds or len(event.clobTokenIds) == 0:
+        logger.warning(f"[API] Event {event_id} has no CLOB token IDs")
+        raise HTTPException(
+            status_code=400,
+            detail="This event does not have price history data available"
+        )
+
+    # Validate outcome index
+    if outcome_index >= len(event.clobTokenIds):
+        logger.warning(f"[API] Invalid outcome_index {outcome_index} for event with {len(event.clobTokenIds)} outcomes")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid outcome index. Market has {len(event.clobTokenIds)} outcomes (0-{len(event.clobTokenIds)-1})"
+        )
+
+    # Use specified outcome's token ID
+    clob_token_id = event.clobTokenIds[outcome_index]
+    outcome_name = event.outcomes[outcome_index] if outcome_index < len(event.outcomes) else f"Outcome {outcome_index}"
+    logger.info(f"[API] Fetching price history for '{outcome_name}' (token: {clob_token_id})")
+
+    # Fetch price history from CLOB API
+    price_history = await price_history_client.get_price_history(
+        market=clob_token_id,
+        interval=interval
+    )
+
+    if not price_history:
+        logger.error(f"[API] Failed to fetch price history for token {clob_token_id}")
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to fetch price history from Polymarket"
+        )
+
+    logger.info(f"[API] Returning {len(price_history.history)} price points for '{outcome_name}'")
+    return price_history
+
+
+@router.post("/chat")
+async def chat_with_senso(request: ChatRequest):
+    """
+    Simple AI chat endpoint powered by Senso.ai
+
+    Sends user messages to Senso.ai and returns AI responses.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if not SENSO_API_KEY:
+        raise HTTPException(status_code=500, detail="Senso API key not configured")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://sdk.senso.ai/api/v1/search",
+                headers={
+                    "X-API-Key": SENSO_API_KEY,
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "query": request.message,
+                    "max_results": 5
+                },
+                timeout=30.0
+            )
+
+            if response.status_code != 200:
+                logger.error(f"Senso API error: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=502, detail="Failed to get response from Senso.ai")
+
+            data = response.json()
+            return {"answer": data.get("answer", "Sorry, I couldn't process that.")}
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Request to Senso.ai timed out")
+    except Exception as e:
+        logger.error(f"Error calling Senso.ai: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")

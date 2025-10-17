@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { TrendingUp, Activity, Zap, Clock, Flame } from "lucide-react";
 import { formatRelativeTime, formatVolume, isRecentlyUpdated, getRecencyIntensity } from "@/lib/utils/time";
+import { VolumeSparkline } from "./VolumeSparkline";
 
 interface EventCardProps {
   event: PolymarketEvent;
@@ -45,23 +46,34 @@ export function EventCard({ event, onSelect }: EventCardProps) {
     >
       <CardContent className="p-4">
         <div className="flex gap-4">
-          {/* Left side: Probability Chart */}
-          <div className="flex flex-col items-center justify-center bg-slate-900/50 rounded-lg px-4 py-3 min-w-[100px]">
-            <div className="text-3xl font-bold text-white mb-1">
-              {(event.probability * 100).toFixed(0)}%
+          {/* Left side: Spike Ratio with Volume Sparkline */}
+          <div className="flex flex-col items-center justify-center bg-gradient-to-br from-slate-900/80 to-slate-800/50 rounded-lg px-3 py-3 min-w-[110px] border border-slate-700/50">
+            {/* Spike ratio - the main metric */}
+            <div className="text-4xl font-bold text-amber-400 mb-1">
+              {event.volumeSpike ? event.volumeSpike.toFixed(1) : "1.0"}x
             </div>
-            <div className="text-xs text-slate-400">Chance</div>
-            {hasVolumeSpike && (
-              <Badge variant="outline" className="mt-2 text-xs text-amber-400 border-amber-400/50">
-                <Zap className="w-3 h-3 mr-1" />
-                {event.volumeSpike.toFixed(1)}x
-              </Badge>
-            )}
+            <div className="text-[10px] text-slate-400 mb-2 uppercase tracking-wide">
+              Spike
+            </div>
+
+            {/* Volume sparkline showing trend */}
+            <VolumeSparkline
+              volume24hr={event.volume24hr}
+              volume1wk={event.volume1wk}
+              volume1mo={event.volume1mo}
+              className="mb-2"
+            />
+
+            {/* 24h volume */}
+            <div className="text-xs text-slate-300 font-medium">
+              {formatVolume(event.volume24hr)}
+            </div>
+            <div className="text-[10px] text-slate-500">24h vol</div>
           </div>
 
           {/* Right side: Event details */}
           <div className="flex-1 min-w-0">
-            {/* Title with relative time */}
+            {/* Title with fire icon and relative time */}
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="flex items-center gap-2 flex-1">
                 {isRecent && (
@@ -91,14 +103,14 @@ export function EventCard({ event, onSelect }: EventCardProps) {
               {event.description}
             </p>
 
-            {/* Stats */}
-            <div className="flex items-center gap-4 text-xs">
-              <div className="flex items-center gap-1.5 text-slate-300">
-                <Activity className="w-3.5 h-3.5" />
-                <span className="font-medium">{formatVolume(event.volume24hr)}</span>
-                <span className="text-slate-500">volume</span>
-              </div>
+            {/* Stats - Now includes probability */}
+            <div className="flex items-center gap-3 text-xs flex-wrap">
+              {/* Probability badge */}
+              <Badge variant="secondary" className="text-xs">
+                {(event.probability * 100).toFixed(0)}% prob
+              </Badge>
 
+              {/* Price change */}
               {event.oneDayPriceChange !== null && event.oneDayPriceChange !== 0 && (
                 <div className="flex items-center gap-1">
                   <TrendingUp
@@ -119,9 +131,10 @@ export function EventCard({ event, onSelect }: EventCardProps) {
                 </div>
               )}
 
+              {/* Liquidity */}
               {event.liquidityNum > 0 && (
-                <span className="text-slate-500">
-                  {formatVolume(event.liquidityNum)} liquidity
+                <span className="text-slate-500 text-[11px]">
+                  {formatVolume(event.liquidityNum)} liq
                 </span>
               )}
             </div>

@@ -47,7 +47,7 @@ export function formatVolume(volume: number): string {
 
 /**
  * Check if an event was recently updated (within last 90 seconds)
- * Backend polls every 60s, so 90s gives buffer for display
+ * Backend polls every 7s, so 90s gives buffer for ~12 poll cycles
  */
 export function isRecentlyUpdated(timestamp: string | Date): boolean {
   const date = typeof timestamp === "string" ? new Date(timestamp) : timestamp;

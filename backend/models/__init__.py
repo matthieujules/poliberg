@@ -41,6 +41,12 @@ class PolymarketEvent(BaseModel):
     marketUrl: str = Field(default="")
     endDate: Optional[datetime] = Field(default=None, alias="end_date_iso")
 
+    # CLOB token IDs for price history
+    clobTokenIds: List[str] = Field(default_factory=list, alias="clobTokenIds")
+
+    # Outcomes (candidate names, Yes/No, etc.) - maps 1:1 with clobTokenIds
+    outcomes: List[str] = Field(default_factory=list, alias="outcomes")
+
     # Derived fields
     category: str = Field(default="other")
     tags: List[str] = Field(default_factory=list)
@@ -112,3 +118,16 @@ class ChangesResponse(BaseModel):
     """Response for changes endpoint"""
     changes: List[EventChange]
     total: int
+
+
+class PriceHistoryPoint(BaseModel):
+    """Single price history data point from CLOB API"""
+    t: int  # Unix timestamp
+    p: float  # Price (probability between 0-1)
+
+
+class PriceHistoryResponse(BaseModel):
+    """Response for price history endpoint"""
+    history: List[PriceHistoryPoint]
+    interval: str
+    market: str  # CLOB token ID

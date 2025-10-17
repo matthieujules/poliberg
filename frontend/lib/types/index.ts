@@ -34,6 +34,12 @@ export interface PolymarketEvent {
   marketUrl: string;
   endDate: string | null; // ISO timestamp
 
+  // CLOB token IDs for price history
+  clobTokenIds?: string[];
+
+  // Outcomes (candidate names, Yes/No, etc.) - maps 1:1 with clobTokenIds
+  outcomes?: string[];
+
   // Derived fields
   category: string;
   tags: string[];
@@ -54,7 +60,20 @@ export interface TickerSuggestion {
   relatedTags: string[];
 }
 
-// Historical price data point
+// Historical price data point from CLOB API
+export interface PriceHistoryPoint {
+  t: number; // Unix timestamp
+  p: number; // Price/probability (0-1)
+}
+
+// Price history response from backend
+export interface PriceHistoryResponse {
+  history: PriceHistoryPoint[];
+  interval: string;
+  market: string; // CLOB token ID
+}
+
+// Historical price data point (legacy - for stock data)
 export interface PriceDataPoint {
   timestamp: string; // ISO timestamp
   price: number;

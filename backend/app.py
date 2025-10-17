@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
 
     # Start background polling task
     polling_task = asyncio.create_task(
-        ingestion_service.start_polling(interval=60)
+        ingestion_service.start_polling(interval=7)  # Poll every 7 seconds for demo
     )
 
     logger.info("Backend started successfully")

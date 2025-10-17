@@ -2,8 +2,9 @@
 
 import asyncio
 import httpx
+import random
 from typing import List, Dict, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from collections import deque
 import logging
 
@@ -94,6 +95,7 @@ class IngestionService:
         self.previous_spikes: Dict[str, float] = {}  # event_id -> previous spike ratio
         self.changes: deque[EventChange] = deque(maxlen=self.MAX_CHANGES)  # Rolling log
         self.running = False
+        self.is_first_poll = True  # Track if this is initial load
 
     def calculate_volume_spike(
         self,
@@ -163,6 +165,24 @@ class IngestionService:
             # Use first outcome price as probability
             probability = float(prices[0]) if prices else 0.5
 
+            # Extract CLOB token IDs (also might be JSON string)
+            clob_token_ids = market_data.get("clobTokenIds", [])
+            if isinstance(clob_token_ids, str):
+                try:
+                    clob_token_ids = json.loads(clob_token_ids)
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse clobTokenIds: {clob_token_ids}")
+                    clob_token_ids = []
+
+            # Extract outcomes (candidate names, Yes/No, etc.) - maps 1:1 with clobTokenIds
+            outcomes = market_data.get("outcomes", [])
+            if isinstance(outcomes, str):
+                try:
+                    outcomes = json.loads(outcomes)
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse outcomes: {outcomes}")
+                    outcomes = []
+
             # Create event object
             event_data = {
                 "id": market_data.get("id", ""),
@@ -186,10 +206,29 @@ class IngestionService:
                 "slug": market_data.get("slug", ""),
                 "marketUrl": f"https://polymarket.com/event/{market_data.get('slug', '')}",
                 "end_date_iso": market_data.get("end_date_iso"),
+                "clobTokenIds": clob_token_ids,
+                "outcomes": outcomes,
                 "volumeSpike": volume_spike,
             }
 
             event = PolymarketEvent(**event_data)
+
+            # On first poll, randomize timestamps based on spike size for better UX
+            # Bigger spikes = more recent timestamps (looks more realistic)
+            if self.is_first_poll and volume_spike is not None:
+                # Calculate recency based on spike ratio
+                # High spike (>5x) = 5-30m ago
+                # Medium spike (3-5x) = 30-120m ago
+                # Low spike (1.3-3x) = 120-360m ago
+                if volume_spike >= 5.0:
+                    random_minutes = random.randint(5, 30)
+                elif volume_spike >= 3.0:
+                    random_minutes = random.randint(30, 120)
+                else:
+                    random_minutes = random.randint(120, 360)
+
+                event.detectedAt = datetime.now(timezone.utc) - timedelta(minutes=random_minutes)
+
             return event
 
         except Exception as e:
@@ -266,6 +305,53 @@ class IngestionService:
 
         return changes
 
+    def simulate_demo_activity(self, events: List[PolymarketEvent]) -> List[EventChange]:
+        """
+        DEMO MODE: Randomly bump 2-3 events to create artificial activity
+        This makes events bubble to the top for hackathon demonstration
+
+        Args:
+            events: Current events list
+
+        Returns:
+            List of demo changes created
+        """
+        demo_changes = []
+        now = datetime.now(timezone.utc)
+
+        # Get events with spikes
+        spike_events = [e for e in events if e.volumeSpike is not None and e.volumeSpike >= 2.0]
+
+        if len(spike_events) < 5:
+            return []  # Not enough events to demo with
+
+        # Randomly select 2-3 events to bump
+        num_to_bump = random.randint(2, 3)
+        events_to_bump = random.sample(spike_events, min(num_to_bump, len(spike_events)))
+
+        for event in events_to_bump:
+            # Bump the timestamp to NOW
+            old_timestamp = event.detectedAt
+            event.detectedAt = now
+
+            # Create a demo change log
+            change = EventChange(
+                eventId=event.id,
+                eventTitle=event.title,
+                changeType="spike_increased",  # Simulate an increase
+                timestamp=now,
+                oldSpikeRatio=event.volumeSpike,
+                newSpikeRatio=event.volumeSpike,  # Keep same ratio, just bump time
+                volume24hr=event.volume24hr,
+                probability=event.probability
+            )
+            demo_changes.append(change)
+            self.changes.append(change)
+
+            logger.info(f"🎬 DEMO BUMP: {event.title[:50]}... (moved to top)")
+
+        return demo_changes
+
     async def fetch_and_process_markets(self) -> List[PolymarketEvent]:
         """
         Fetch markets from API and process them
@@ -292,13 +378,21 @@ class IngestionService:
                 events.append(event)
                 self.events[event.id] = event
 
-        # Detect changes from previous poll
-        changes = self.detect_changes(events)
+        # Detect changes from previous poll (skip on first poll since we randomized timestamps)
+        if not self.is_first_poll:
+            changes = self.detect_changes(events)
 
-        logger.info(
-            f"Processed {len(events)} events, "
-            f"detected {len(changes)} changes"
-        )
+            # DEMO MODE: Randomly bump 2-3 events to create artificial activity
+            # This makes the hackathon demo more dynamic
+            demo_changes = self.simulate_demo_activity(events)
+
+            logger.info(
+                f"Processed {len(events)} events, "
+                f"detected {len(changes)} real changes + {len(demo_changes)} demo bumps"
+            )
+        else:
+            logger.info(f"Initial poll: Processed {len(events)} events with randomized timestamps")
+            self.is_first_poll = False
 
         return events
 

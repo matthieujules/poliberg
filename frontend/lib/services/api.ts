@@ -258,3 +258,32 @@ export interface TickerSuggestion {
   direction: "bullish" | "bearish" | "neutral";
   relatedTags: string[];
 }
+
+/**
+ * Fetch price history for an event
+ */
+export async function fetchPriceHistory(
+  eventId: string,
+  interval: string = "1d",
+  outcomeIndex: number = 0
+): Promise<import("@/lib/types").PriceHistoryResponse> {
+  console.log(`[API] Fetching price history for event ${eventId} (interval: ${interval}, outcome: ${outcomeIndex})`);
+
+  try {
+    const url = `${API_BASE}/api/events/${eventId}/price-history?interval=${interval}&outcome_index=${outcomeIndex}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log(`[API] Fetched ${data.history.length} price points`);
+
+    return data;
+  } catch (error) {
+    console.error(`[API] Failed to fetch price history for event ${eventId}:`, error);
+    throw error;
+  }
+}
