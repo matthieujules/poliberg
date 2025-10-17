@@ -1,72 +1,69 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+## Unified ignore for Python + Node + Next + Frontend/Backend
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Node
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
+# Build outputs
+dist/
+build/
+.next/
+out/
 *.tsbuildinfo
 next-env.d.ts
 
+# Monorepo subfolders
+frontend/node_modules/
+backend/node_modules/
 
-node_modules/*
-backend/node_modules/*
-
-# python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-*.egg-info/
-pip-wheel-metadata/
-.venv/
-venv/
-env/
-.coverage
-coverage.xml
-htmlcov/
-.cache/
-
-# IDE/editor
+# IDEs
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# logs and temp
-*.log
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.vercel
+
+# Logs and temp
 logs/
+*.log
+*.tmp
+*.temp
+.cache/
 tmp/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3

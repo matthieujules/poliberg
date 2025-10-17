@@ -1,0 +1,178 @@
+"""HTTP routes for frontier feed, event actions, and orchestrator triggers."""
+
+from fastapi import APIRouter, HTTPException, Query
+from typing import Optional
+from datetime import datetime
+
+from models import EventListResponse, PolymarketEvent, ChangesResponse, TickerSuggestion
+from services.ingestion import ingestion_service
+from services.asset_mapper import asset_mapper_service
+
+router = APIRouter()
+
+
+@router.get("/events", response_model=EventListResponse)
+async def get_frontier_events(
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of events to return"),
+    spike_only: bool = Query(False, description="Only return events with volume spikes"),
+):
+    """
+    Get frontier events (most interesting markets)
+
+    Returns events sorted by volume spike ratio, then by 24hr volume.
+    If spike_only=true, only returns markets with detected volume spikes.
+    """
+    events = ingestion_service.get_frontier_events(
+        limit=limit,
+        spike_only=spike_only
+    )
+
+    spike_count = sum(1 for e in events if e.volumeSpike is not None)
+
+    return EventListResponse(
+        events=events,
+        total=len(events),
+        hasVolumeSpike=spike_count
+    )
+
+
+# IMPORTANT: Specific routes must come BEFORE dynamic {event_id} routes
+@router.get("/events/spikes/summary")
+async def get_spike_summary():
+    """
+    Get summary statistics about volume spikes
+    """
+    all_events = list(ingestion_service.events.values())
+    spike_events = [e for e in all_events if e.volumeSpike is not None]
+
+    if not spike_events:
+        return {
+            "total_events": len(all_events),
+            "spike_events": 0,
+            "average_spike_ratio": 0,
+            "max_spike_ratio": 0,
+            "top_spike_event": None
+        }
+
+    spike_ratios = [e.volumeSpike for e in spike_events if e.volumeSpike]
+    avg_ratio = sum(spike_ratios) / len(spike_ratios) if spike_ratios else 0
+    max_ratio = max(spike_ratios) if spike_ratios else 0
+
+    # Get event with highest spike
+    top_spike = max(spike_events, key=lambda e: e.volumeSpike or 0)
+
+    return {
+        "total_events": len(all_events),
+        "spike_events": len(spike_events),
+        "average_spike_ratio": round(avg_ratio, 2),
+        "max_spike_ratio": round(max_ratio, 2),
+        "top_spike_event": {
+            "id": top_spike.id,
+            "title": top_spike.title,
+            "spike_ratio": round(top_spike.volumeSpike, 2),
+            "volume24hr": top_spike.volume24hr,
+        }
+    }
+
+
+@router.get("/events/changes", response_model=ChangesResponse)
+async def get_changes(
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of changes to return"),
+    since: Optional[str] = Query(None, description="ISO timestamp to filter from (e.g., 2025-10-17T12:00:00Z)"),
+):
+    """
+    Get recent changes detected in polling
+
+    Returns changes in reverse chronological order (most recent first).
+    Use 'since' parameter to get only changes after a specific timestamp.
+    """
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            changes = ingestion_service.get_changes_since(since_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid timestamp format. Use ISO format.")
+    else:
+        changes = ingestion_service.get_recent_changes(limit=limit)
+
+    return ChangesResponse(
+        changes=changes,
+        total=len(changes)
+    )
+
+
+@router.post("/refresh")
+async def force_refresh():
+    """
+    Force a refresh of market data from Polymarket API
+    """
+    events = await ingestion_service.fetch_and_process_markets()
+    spike_count = sum(1 for e in events if e.volumeSpike is not None)
+
+    return {
+        "status": "success",
+        "events_fetched": len(events),
+        "spike_events": spike_count
+    }
+
+
+# Dynamic routes with {event_id} must come AFTER specific routes
+@router.get("/events/{event_id}/tickers", response_model=list[TickerSuggestion])
+async def get_event_tickers(event_id: str):
+    """
+    Get GPT-mapped stock ticker suggestions for an event
+
+    Uses GPT-5-mini to analyze the event and suggest 8 stock tickers
+    that would be most affected if the event were to occur.
+
+    Returns tickers ranked by impact score (confidence).
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"[API] GET /api/events/{event_id}/tickers - Request received")
+
+    # Get the event
+    event = ingestion_service.events.get(event_id)
+
+    if not event:
+        logger.warning(f"[API] Event not found: {event_id}")
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    logger.info(f"[API] Event found: {event.title[:60]}")
+    logger.info(f"[API] Calling GPT-5-mini for ticker suggestions...")
+
+    # Get ticker suggestions from GPT
+    tickers = await asset_mapper_service.get_tickers(event)
+
+    logger.info(f"[API] Returning {len(tickers)} tickers")
+
+    return tickers
+
+
+@router.get("/events/{event_id}", response_model=PolymarketEvent)
+async def get_event(event_id: str):
+    """
+    Get a specific event by ID
+    """
+    event = ingestion_service.events.get(event_id)
+
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    return event
+
+
+@router.post("/events/{event_id}/lock")
+async def toggle_event_lock(event_id: str):
+    """
+    Toggle lock state for an event
+    """
+    event = ingestion_service.events.get(event_id)
+
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    event.locked = not event.locked
+
+    return {"id": event_id, "locked": event.locked}
