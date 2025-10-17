@@ -11,6 +11,7 @@ from models import EventListResponse, PolymarketEvent, ChangesResponse, TickerSu
 from services.ingestion import ingestion_service
 from services.asset_mapper import asset_mapper_service
 from services.price_history import price_history_client
+from services.apify_news import apify_news_service
 
 router = APIRouter()
 
@@ -299,3 +300,60 @@ async def chat_with_senso(request: ChatRequest):
     except Exception as e:
         logger.error(f"Error calling Senso.ai: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# Apify News Scraping Routes
+class NewsScrapeRequest(BaseModel):
+    query: str = "Tesla"
+    max_items: int = 10
+    language: str = "US:en"
+    time_range: str = "1h"
+    fetch_details: bool = True
+    actor_id: Optional[str] = None
+
+
+@router.post("/apify/news")
+async def scrape_news(request: NewsScrapeRequest):
+    """
+    Scrape news using Apify Google News scraper
+    
+    Scrapes Google News for the given query and returns news articles
+    with optional full article details.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[API] POST /api/apify/news - Query: {request.query}")
+    
+    try:
+        result = await apify_news_service.scrape_news(
+            query=request.query,
+            max_items=request.max_items,
+            language=request.language,
+            time_range=request.time_range,
+            fetch_details=request.fetch_details,
+            actor_id=request.actor_id
+        )
+        
+        logger.info(f"[API] News scrape completed - {result['itemCount']} items found")
+        return result
+        
+    except Exception as e:
+        logger.error(f"[API] News scrape failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"News scraping failed: {str(e)}")
+
+
+@router.get("/apify/news/health")
+async def apify_health():
+    """
+    Health check for Apify news service
+    """
+    try:
+        # Simple health check - just verify we can get the token
+        token = os.getenv('APIFY_TOKEN')
+        if not token:
+            return {"status": "error", "message": "APIFY_TOKEN not configured"}
+        
+        return {"status": "ok", "message": "Apify news service ready"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

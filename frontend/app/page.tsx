@@ -9,6 +9,7 @@ import { EventDetailView } from "@/components/EventDetail/EventDetailView";
 import { DebugConsole } from "@/components/Dashboard/DebugConsole";
 import { Visualization3DOverlay } from "@/components/Visualization3D/Visualization3DOverlay";
 import ChatWidget from "@/components/ChatWidget";
+import { NewsScraper } from "@/components/NewsScraper";
 import { Box } from "lucide-react";
 
 export default function Home() {
@@ -59,6 +60,11 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
+        {/* News Scraper Section */}
+        <section className="mb-8">
+          <NewsScraper />
+        </section>
+
         {/* Event Grid - All events */}
         {events.length > 0 && (
           <section>

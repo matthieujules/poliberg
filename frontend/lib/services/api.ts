@@ -230,6 +230,55 @@ export async function fetchChanges(
 }
 
 /**
+ * Scrape news using Apify Google News scraper
+ */
+export async function scrapeNews(params: {
+  query: string;
+  max_items?: number;
+  language?: string;
+  time_range?: string;
+  fetch_details?: boolean;
+  actor_id?: string;
+}): Promise<{
+  runId: string;
+  status: string;
+  itemCount: number;
+  items: any[];
+}> {
+  console.log(`[API] Scraping news for query: ${params.query}`);
+
+  try {
+    const url = `${API_BASE}/api/apify/news`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: params.query,
+        max_items: params.max_items || 10,
+        language: params.language || "US:en",
+        time_range: params.time_range || "1h",
+        fetch_details: params.fetch_details !== false,
+        actor_id: params.actor_id,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log(`[API] News scrape completed: ${data.itemCount} items found`);
+
+    return data;
+  } catch (error) {
+    console.error("[API] Failed to scrape news:", error);
+    throw error;
+  }
+}
+
+/**
  * Get GPT-mapped ticker suggestions for an event
  */
 export async function fetchEventTickers(

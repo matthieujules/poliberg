@@ -7,7 +7,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { TickerList } from "./TickerList";
 import { MarketChart } from "./MarketChart";
 import { Separator } from "@/components/ui/separator";
-import { fetchPriceHistory } from "@/lib/services/api";
+import { fetchPriceHistory, scrapeNews } from "@/lib/services/api";
 import { PriceHistoryPoint } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { formatVolume } from "@/lib/utils/time";
@@ -24,6 +24,11 @@ export function EventDetailView({ eventId, onClose }: EventDetailViewProps) {
   const [selectedOutcomeIndex, setSelectedOutcomeIndex] = useState<number>(0);
   const [isLoadingChart, setIsLoadingChart] = useState<boolean>(true);
   const [chartError, setChartError] = useState<string | null>(null);
+  
+  // News state
+  const [newsItems, setNewsItems] = useState<any[]>([]);
+  const [isLoadingNews, setIsLoadingNews] = useState<boolean>(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
 
   // Fetch price history when component mounts or interval changes
   // NOTE: We only depend on eventId and interval, NOT event object itself
@@ -53,6 +58,36 @@ export function EventDetailView({ eventId, onClose }: EventDetailViewProps) {
     loadPriceHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, interval, selectedOutcomeIndex]); // Re-fetch when eventId, interval, or outcome changes
+
+  // Fetch Tesla news when component mounts
+  useEffect(() => {
+    const loadTeslaNews = async () => {
+      setIsLoadingNews(true);
+      setNewsError(null);
+      setNewsItems([]);
+
+      try {
+        const result = await scrapeNews({
+          query: "Tesla",
+          max_items: 5,
+          time_range: "1h",
+          fetch_details: true,
+        });
+
+        if (result.status === "SUCCEEDED") {
+          setNewsItems(result.items);
+        } else {
+          setNewsError(`News scraping failed: ${result.status}`);
+        }
+      } catch (err) {
+        setNewsError(err instanceof Error ? err.message : "Failed to scrape news");
+      } finally {
+        setIsLoadingNews(false);
+      }
+    };
+
+    loadTeslaNews();
+  }, [eventId]); // Only fetch once when event changes
 
   if (!event) {
     return null;
@@ -183,6 +218,53 @@ export function EventDetailView({ eventId, onClose }: EventDetailViewProps) {
 
           {/* GPT-Mapped Tickers */}
           <TickerList eventId={eventId} event={event} />
+
+          <Separator className="bg-slate-800" />
+
+          {/* Tesla News Section */}
+          <div className="bg-slate-900/50 rounded-lg border border-slate-800 p-6">
+            <h2 className="text-xl font-semibold text-white mb-4">Related News</h2>
+            
+            {isLoadingNews && (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <p className="text-slate-400 mt-2">Loading news...</p>
+              </div>
+            )}
+
+            {newsError && (
+              <div className="p-4 bg-red-900/50 border border-red-700 rounded-md text-red-200">
+                {newsError}
+              </div>
+            )}
+
+            {newsItems.length > 0 && (
+              <div className="space-y-4">
+                {newsItems.map((item, index) => (
+                  <div
+                    key={index}
+                    className="p-4 bg-slate-800 rounded-md border border-slate-700 hover:border-slate-600 transition-colors"
+                  >
+                    <h3 className="font-medium text-white mb-2 line-clamp-2">{item.title}</h3>
+                    <div className="flex items-center gap-4 text-sm text-slate-400 mb-2">
+                      <span>Source: {item.source}</span>
+                      <span>
+                        Published: {new Date(item.publishedAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <a
+                      href={item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block text-blue-400 hover:text-blue-300 text-sm transition-colors"
+                    >
+                      Read full article →
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>
