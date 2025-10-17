@@ -5,6 +5,7 @@ from typing import Dict, List, Any
 from datetime import datetime
 
 from models import PolymarketEvent
+from services.news_agents import news_agent_service
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ class OrchestratorService:
     """Service for orchestrating event detail analysis."""
     
     def __init__(self):
-        pass
+        self.news_service = news_agent_service
     
     async def orchestrate_event_detail(
         self, 
@@ -34,7 +35,7 @@ class OrchestratorService:
         Returns:
             Dictionary containing analysis results
         """
-        logger.info(f"Starting orchestration for event: {event.question}")
+        logger.info(f"Starting orchestration for event: {event.title}")
         
         results = {
             "event": event,
@@ -46,15 +47,25 @@ class OrchestratorService:
         }
         
         try:
-            # TODO: Add news fetching integration
+            if include_news:
+                logger.info("Fetching news articles...")
+                news_articles = await self.news_service.get_news_for_event(
+                    event_title=event.title,
+                    event_tags=[],  # Placeholder for future tag extraction
+                    max_items=news_max_items,
+                    time_range=news_time_range
+                )
+                results["news"] = news_articles
+                logger.info(f"Fetched {len(news_articles)} news articles")
+            
             # TODO: Add ticker mapping service integration
             # TODO: Add stock data fetching integration
             
             results["status"] = "complete"
-            logger.info(f"Orchestration complete for event: {event.question}")
+            logger.info(f"Orchestration complete for event: {event.title}")
             
         except Exception as e:
-            logger.error(f"Orchestration failed for event {event.question}: {e}")
+            logger.error(f"Orchestration failed for event {event.title}: {e}")
             results["status"] = "error"
             results["error"] = str(e)
         
@@ -77,8 +88,12 @@ class OrchestratorService:
         Returns:
             List of news articles
         """
-        # TODO: Implement news fetching
-        return []
+        return await self.news_service.get_news_for_event(
+            event_title=event.title,
+            event_tags=[],
+            max_items=max_items,
+            time_range=time_range
+        )
 
 
 # Global instance
