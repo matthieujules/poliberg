@@ -7,6 +7,7 @@ import {
   PriceDataPoint,
 } from "@/lib/types";
 import { getMockTickers } from "@/lib/data/mockTickers";
+import { fetchEventNews } from "@/lib/services/orchestratorApi";
 
 /**
  * Simulates backend orchestration flow with realistic delays
@@ -33,11 +34,15 @@ export async function orchestrateEventDetail(
     stockData[ticker.symbol] = generateMockStockData(ticker.symbol, eventTimestamp);
   }
 
-  // Step 3: Fetch news
+  // Step 3: Fetch news from backend orchestrator
   onStatusUpdate("fetching_news");
-  await delay(1500, 2000);
-
-  const news = generateMockNews(event);
+  let news;
+  try {
+    news = await fetchEventNews(event, { maxItems: 6, preferredTool: "exa" });
+  } catch (err) {
+    // Fallback to mock if backend fails to keep UI usable
+    news = generateMockNews(event);
+  }
 
   // Complete!
   onStatusUpdate("complete");
