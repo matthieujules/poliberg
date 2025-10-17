@@ -39,3 +39,34 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+node_modules/*
+backend/node_modules/*
+
+# python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+pip-wheel-metadata/
+.venv/
+venv/
+env/
+.coverage
+coverage.xml
+htmlcov/
+.cache/
+
+# IDE/editor
+.vscode/
+.idea/
+
+# logs and temp
+*.log
+logs/
+tmp/
