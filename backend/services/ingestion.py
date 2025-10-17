@@ -138,14 +138,21 @@ class IngestionService:
             )
 
             # Extract outcome prices to calculate probability
-            outcome_prices = market_data.get("outcomePrices", "0,0")
+            import json
+            outcome_prices = market_data.get("outcomePrices", "[]")
+
+            # Parse JSON array string
             if isinstance(outcome_prices, str):
-                prices = [float(p) for p in outcome_prices.split(",")]
+                try:
+                    prices = json.loads(outcome_prices)
+                except json.JSONDecodeError:
+                    # Fallback to comma-separated parsing
+                    prices = [float(p.strip()) for p in outcome_prices.split(",") if p.strip()]
             else:
                 prices = outcome_prices
 
             # Use first outcome price as probability
-            probability = prices[0] if prices else 0.5
+            probability = float(prices[0]) if prices else 0.5
 
             # Create event object
             event_data = {
