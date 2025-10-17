@@ -98,7 +98,7 @@ export function EventBubble({ event, position, onSelect }: EventBubbleProps) {
       )}
 
       {/* Hover label */}
-      {hovered && (
+      {hovered && event.title && (
         <Text
           position={[0, size + 0.8, 0]}
           fontSize={0.3}
@@ -108,7 +108,7 @@ export function EventBubble({ event, position, onSelect }: EventBubbleProps) {
           outlineWidth={0.02}
           outlineColor="#000000"
         >
-          {event.title.slice(0, 40)}...
+          {event.title.slice(0, 40)}{event.title.length > 40 ? '...' : ''}
         </Text>
       )}
     </group>
