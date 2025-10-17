@@ -145,16 +145,27 @@ class ApifyService:
         if query.get("clean"):
             params["clean"] = str(query["clean"])
         
-        url = f"{self.APIFY_BASE_URL}/datasets/{dataset_id}/items"
+        # Use the correct URL format with token in query string
+        url = f"{self.APIFY_BASE_URL}/datasets/{dataset_id}/items?token={self.token}"
+        
+        # Add additional parameters
+        if query.get("limit"):
+            url += f"&limit={query['limit']}"
+        if query.get("offset"):
+            url += f"&offset={query['offset']}"
+        if query.get("clean"):
+            url += f"&clean={query['clean']}"
         
         try:
+            logger.info(f"Fetching from: {url}")
             response = await self.client.get(
                 url,
-                params=params,
                 headers={"Accept": "application/json"}
             )
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            logger.info(f"Successfully fetched {len(data)} items from dataset")
+            return data
         except httpx.HTTPError as e:
             logger.error(f"Failed to fetch dataset items: {e}")
             raise Exception(f"Failed to fetch dataset items ({response.status_code}): {e}")
@@ -211,7 +222,7 @@ class ApifyService:
             # Fetch the results
             items = await self.fetch_dataset_items(
                 finished_run["defaultDatasetId"],
-                {"limit": max_items, "clean": True}
+                {"limit": max_items}
             )
             
             logger.info(f"Successfully scraped {len(items)} news articles for query: {query}")
