@@ -24,7 +24,8 @@ class ApifyService:
         """Get Apify token from environment variables."""
         token = os.getenv("APIFY_TOKEN")
         if not token:
-            raise ValueError("Missing APIFY_TOKEN environment variable")
+            logger.warning("Missing APIFY_TOKEN environment variable - Apify features will be disabled")
+            return "missing_token"
         return token
     
     async def start_actor_run(
@@ -179,6 +180,9 @@ class ApifyService:
         Returns:
             List of news articles
         """
+        if self.token == "missing_token":
+            logger.error("Cannot scrape news: APIFY_TOKEN is not configured")
+            raise ValueError("APIFY_TOKEN environment variable is required for news scraping")
         run_input = {
             "query": query,
             "topics": [],
