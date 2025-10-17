@@ -1,40 +1,48 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, TrendingDown, Minus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchEventTickers, TickerSuggestion } from "@/lib/services/api";
+import { TickerChart } from "./TickerChart";
 
 interface TickerListProps {
   eventId: string;
+  event: any; // PolymarketEvent from the store
 }
 
-export function TickerList({ eventId }: TickerListProps) {
+export function TickerList({ eventId, event }: TickerListProps) {
   const [tickers, setTickers] = useState<TickerSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
+    console.log(`[TickerList] Effect triggered for eventId: ${eventId}`);
+
+    let cancelled = false;
 
     async function loadTickers() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await fetchEventTickers(eventId);
 
-        if (isMounted) {
+        const data = await fetchEventTickers(eventId, event);
+
+        if (!cancelled) {
+          console.log(`[TickerList] Setting ${data.length} tickers in state:`, data);
           setTickers(data);
+          console.log(`[TickerList] State updated, isLoading will be set to false`);
         }
       } catch (err) {
-        if (isMounted) {
+        console.error(`[TickerList] Error:`, err);
+        if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load tickers");
         }
       } finally {
-        if (isMounted) {
+        if (!cancelled) {
           setIsLoading(false);
         }
       }
@@ -43,7 +51,7 @@ export function TickerList({ eventId }: TickerListProps) {
     loadTickers();
 
     return () => {
-      isMounted = false;
+      cancelled = true;
     };
   }, [eventId]);
 
@@ -68,6 +76,8 @@ export function TickerList({ eventId }: TickerListProps) {
         return "text-slate-500";
     }
   };
+
+  console.log(`[TickerList] Render - isLoading: ${isLoading}, tickers: ${tickers.length}, error: ${error}`);
 
   if (isLoading) {
     return (
@@ -107,7 +117,7 @@ export function TickerList({ eventId }: TickerListProps) {
           <CardContent className="p-6 text-center">
             <p className="text-red-400">{error}</p>
             <p className="text-sm text-slate-500 mt-2">
-              Make sure the OPENROUTER_API_KEY environment variable is set in backend/.env
+              Make sure OPENROUTER_API_KEY is set in frontend/.env.local
             </p>
           </CardContent>
         </Card>
@@ -135,7 +145,7 @@ export function TickerList({ eventId }: TickerListProps) {
       <div>
         <h3 className="text-xl font-bold mb-2">Related Stock Tickers</h3>
         <p className="text-sm text-slate-400">
-          GPT-4o-mini identified {tickers.length} stocks that could be affected by this event
+          GPT-5-mini identified {tickers.length} stocks that could be affected by this event
         </p>
       </div>
 
@@ -163,20 +173,12 @@ export function TickerList({ eventId }: TickerListProps) {
               </div>
             </CardHeader>
 
-            <CardContent className="space-y-2">
-              <p className="text-sm text-slate-300">{ticker.rationale}</p>
+            <CardContent className="space-y-3">
+              {/* Stock Chart with Price */}
+              <TickerChart symbol={ticker.symbol} eventTimestamp={event.detectedAt} />
 
-              <div className="flex gap-1 flex-wrap">
-                {ticker.relatedTags.map((tag) => (
-                  <Badge key={tag} variant="outline" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-
-              <div className={cn("text-xs font-medium", getDirectionColor(ticker.direction))}>
-                {ticker.direction.charAt(0).toUpperCase() + ticker.direction.slice(1)} if event occurs
-              </div>
+              {/* Rationale */}
+              <p className="text-xs text-slate-400 line-clamp-2">{ticker.rationale}</p>
             </CardContent>
           </Card>
         ))}

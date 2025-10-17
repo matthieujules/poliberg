@@ -232,25 +232,22 @@ export async function fetchChanges(
 /**
  * Get GPT-mapped ticker suggestions for an event
  */
-export async function fetchEventTickers(eventId: string): Promise<TickerSuggestion[]> {
-  console.log(`[API] Fetching ticker suggestions for event:`, eventId);
+export async function fetchEventTickers(
+  eventId: string,
+  event: PolymarketEvent
+): Promise<TickerSuggestion[]> {
+  const response = await fetch("/api/tickers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(event),
+  });
 
-  try {
-    const url = `${API_BASE}/api/events/${eventId}/tickers`;
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
-    }
-
-    const tickers: TickerSuggestion[] = await response.json();
-    console.log(`[API] Fetched ${tickers.length} tickers for event ${eventId}`);
-
-    return tickers;
-  } catch (error) {
-    console.error(`[API] Failed to fetch tickers for event ${eventId}:`, error);
-    throw error;
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `API error: ${response.status}`);
   }
+
+  return response.json();
 }
 
 export interface TickerSuggestion {

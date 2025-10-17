@@ -50,22 +50,21 @@ export function useFrontierEvents(options: UseFrontierEventsOptions = {}) {
       // Fetch events
       const response = await fetchFrontierEvents(limit, spikeOnly);
 
-      // Fetch changes since last poll
+      // Fetch recent changes (always get last 10, not filtered by time)
+      // This works because backend only detects changes every 60s when it polls Polymarket
       let changesData: EventChange[] = [];
-      if (lastPollRef.current) {
-        try {
-          const changesResponse = await fetchChanges(10, lastPollRef.current.toISOString());
-          changesData = changesResponse.changes;
+      try {
+        const changesResponse = await fetchChanges(10); // No time filter - get most recent
+        changesData = changesResponse.changes;
 
-          if (changesData.length > 0) {
-            console.log(
-              `[useFrontierEvents] Detected ${changesData.length} changes:`,
-              changesData.map((c) => `${c.changeType}: ${c.eventTitle.substring(0, 40)}...`)
-            );
-          }
-        } catch (err) {
-          console.warn("[useFrontierEvents] Failed to fetch changes:", err);
+        if (changesData.length > 0) {
+          console.log(
+            `[useFrontierEvents] Recent changes:`,
+            changesData.map((c) => `${c.changeType}: ${c.eventTitle.substring(0, 40)}...`)
+          );
         }
+      } catch (err) {
+        console.warn("[useFrontierEvents] Failed to fetch changes:", err);
       }
 
       console.log(
@@ -88,9 +87,8 @@ export function useFrontierEvents(options: UseFrontierEventsOptions = {}) {
           spikeCount: response.hasVolumeSpike,
           changesDetected: changesData.length,
         },
-        recentChanges: changesData.length > 0
-          ? [...changesData, ...prev.recentChanges].slice(0, 10) // Keep last 10 changes
-          : prev.recentChanges,
+        // Always replace with latest changes from backend (don't accumulate)
+        recentChanges: changesData,
       }));
     } catch (error) {
       console.error("[useFrontierEvents] Error fetching events:", error);

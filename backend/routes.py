@@ -122,19 +122,30 @@ async def get_event_tickers(event_id: str):
     """
     Get GPT-mapped stock ticker suggestions for an event
 
-    Uses GPT-4o-mini to analyze the event and suggest 8 stock tickers
+    Uses GPT-5-mini to analyze the event and suggest 8 stock tickers
     that would be most affected if the event were to occur.
 
     Returns tickers ranked by impact score (confidence).
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"[API] GET /api/events/{event_id}/tickers - Request received")
+
     # Get the event
     event = ingestion_service.events.get(event_id)
 
     if not event:
+        logger.warning(f"[API] Event not found: {event_id}")
         raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    logger.info(f"[API] Event found: {event.title[:60]}")
+    logger.info(f"[API] Calling GPT-5-mini for ticker suggestions...")
 
     # Get ticker suggestions from GPT
     tickers = await asset_mapper_service.get_tickers(event)
+
+    logger.info(f"[API] Returning {len(tickers)} tickers")
 
     return tickers
 

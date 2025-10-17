@@ -1,34 +1,45 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { PolymarketEvent } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { TrendingUp, Activity, Zap } from "lucide-react";
+import { TrendingUp, Activity, Zap, Clock, Flame } from "lucide-react";
+import { formatRelativeTime, formatVolume, isRecentlyUpdated, getRecencyIntensity } from "@/lib/utils/time";
 
 interface EventCardProps {
   event: PolymarketEvent;
   onSelect: () => void;
 }
 
-function formatVolume(volume: number): string {
-  if (volume >= 1_000_000) {
-    return `$${(volume / 1_000_000).toFixed(1)}M`;
-  } else if (volume >= 1_000) {
-    return `$${(volume / 1_000).toFixed(0)}k`;
-  }
-  return `$${volume.toFixed(0)}`;
-}
-
 export function EventCard({ event, onSelect }: EventCardProps) {
-  const hasVolumeSpike = event.volumeSpike !== null && event.volumeSpike >= 1.5;
+  const hasVolumeSpike = event.volumeSpike !== null && event.volumeSpike >= 1.3;
+
+  // Update relative time and recency every second
+  const [relativeTime, setRelativeTime] = useState(() => formatRelativeTime(event.detectedAt));
+  const [isRecent, setIsRecent] = useState(() => isRecentlyUpdated(event.detectedAt));
+  const [intensity, setIntensity] = useState(() => getRecencyIntensity(event.detectedAt));
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRelativeTime(formatRelativeTime(event.detectedAt));
+      setIsRecent(isRecentlyUpdated(event.detectedAt));
+      setIntensity(getRecencyIntensity(event.detectedAt));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [event.detectedAt]);
 
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-all hover:shadow-lg hover:border-slate-600",
+        "cursor-pointer transition-all duration-500 hover:shadow-lg hover:border-slate-600",
         "overflow-hidden",
-        hasVolumeSpike && "border-amber-500/50 shadow-amber-500/10"
+        hasVolumeSpike && "border-amber-500/50 shadow-amber-500/10",
+        // Add glow effect for recently updated events
+        isRecent && intensity > 0.7 && "shadow-amber-500/30 animate-pulse-slow",
+        isRecent && intensity === 1.0 && "border-amber-400 shadow-amber-400/40"
       )}
       onClick={onSelect}
     >
@@ -50,10 +61,30 @@ export function EventCard({ event, onSelect }: EventCardProps) {
 
           {/* Right side: Event details */}
           <div className="flex-1 min-w-0">
-            {/* Title */}
-            <h3 className="text-base font-semibold mb-2 line-clamp-2 leading-snug">
-              {event.title}
-            </h3>
+            {/* Title with relative time */}
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2 flex-1">
+                {isRecent && (
+                  <Flame
+                    className={cn(
+                      "w-4 h-4 flex-shrink-0",
+                      intensity === 1.0 && "text-orange-500 animate-pulse",
+                      intensity > 0.7 && intensity < 1.0 && "text-orange-400",
+                      intensity <= 0.7 && "text-amber-400"
+                    )}
+                  />
+                )}
+                <h3 className="text-base font-semibold line-clamp-2 leading-snug">
+                  {event.title}
+                </h3>
+              </div>
+              {hasVolumeSpike && (
+                <div className="flex items-center gap-1 text-xs text-amber-400 flex-shrink-0">
+                  <Clock className="w-3 h-3" />
+                  <span className="font-mono">{relativeTime}</span>
+                </div>
+              )}
+            </div>
 
             {/* Description */}
             <p className="text-sm text-slate-400 mb-3 line-clamp-2 leading-relaxed">

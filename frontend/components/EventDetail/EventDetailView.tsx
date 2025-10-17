@@ -45,7 +45,7 @@ export function EventDetailView({ eventId, onClose }: EventDetailViewProps) {
       <main className="flex-1 overflow-y-auto bg-slate-950">
         <div className="container mx-auto px-6 py-8 space-y-8">
           {/* GPT-Mapped Tickers */}
-          <TickerList eventId={eventId} />
+          <TickerList eventId={eventId} event={event} />
         </div>
       </main>
     </div>

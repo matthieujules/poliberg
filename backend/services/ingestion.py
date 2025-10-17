@@ -75,12 +75,15 @@ class IngestionService:
 
     Volume Spike Detection Logic:
     - Compares 24hr volume to average daily volume from weekly data
-    - A spike is detected when 24hr volume > 1.5x average daily volume
-    - This means today's volume is 50% higher than normal
+    - A spike is detected when 24hr volume > 1.3x average daily volume
+    - This means today's volume is 30% higher than normal (more sensitive)
     """
 
-    # Volume spike threshold: 50% increase over average
-    VOLUME_SPIKE_THRESHOLD = 1.5
+    # Volume spike threshold: 30% increase over average (lowered for more dynamic feed)
+    VOLUME_SPIKE_THRESHOLD = 1.3
+
+    # Change detection threshold: 5% increase/decrease (more sensitive)
+    SPIKE_CHANGE_THRESHOLD = 0.05
 
     # Maximum changes to keep in history
     MAX_CHANGES = 100
@@ -220,11 +223,11 @@ class IngestionService:
                 logger.info(f"🆕 NEW SPIKE: {event.title[:50]}... ({new_spike:.1f}x)")
 
             elif old_spike is not None and new_spike is not None:
-                # Spike exists, check if it changed
-                if new_spike > old_spike * 1.1:  # 10% increase threshold
+                # Spike exists, check if it changed (using lower 5% threshold for more dynamic feed)
+                if new_spike > old_spike * (1 + self.SPIKE_CHANGE_THRESHOLD):  # 5% increase threshold
                     change_type = "spike_increased"
                     logger.info(f"📈 SPIKE INCREASED: {event.title[:50]}... ({old_spike:.1f}x → {new_spike:.1f}x)")
-                elif new_spike < old_spike * 0.9:  # 10% decrease threshold
+                elif new_spike < old_spike * (1 - self.SPIKE_CHANGE_THRESHOLD):  # 5% decrease threshold
                     change_type = "spike_decreased"
                     logger.info(f"📉 SPIKE DECREASED: {event.title[:50]}... ({old_spike:.1f}x → {new_spike:.1f}x)")
 
@@ -247,6 +250,12 @@ class IngestionService:
                 )
                 changes.append(change)
                 self.changes.append(change)
+
+                # ACTIVITY FEED LOGIC: Bump timestamp for new/increased spikes
+                # This pushes the event to the top of the feed
+                if change_type in ["new_spike", "spike_increased"]:
+                    event.detectedAt = now
+                    logger.info(f"   ⏰ Bumped timestamp for: {event.title[:50]}...")
 
             # Update previous state
             if new_spike is not None:
@@ -301,23 +310,31 @@ class IngestionService:
         """
         Get frontier events (most interesting markets)
 
+        ACTIVITY FEED LOGIC:
+        - Events are sorted by most recent spike activity (detectedAt)
+        - When a market gets a new spike or spike increase, its timestamp is updated
+        - This creates a chronological feed where new spikes bubble to the top
+        - Old spikes naturally age down the list without new activity
+
         Args:
             limit: Maximum number of events to return
             spike_only: If True, only return events with volume spikes
 
         Returns:
-            List of frontier events sorted by interest score
+            List of frontier events sorted by recent activity (most recent first)
         """
         events = list(self.events.values())
 
         if spike_only:
             events = [e for e in events if e.volumeSpike is not None]
 
-        # Sort by volume spike ratio (highest first), then by volume
+        # Sort by activity recency (most recent spike activity first)
+        # Tiebreaker: if same timestamp, sort by spike ratio then volume
         events.sort(
             key=lambda e: (
-                e.volumeSpike if e.volumeSpike else 0,
-                e.volume24hr
+                e.detectedAt,                        # Primary: Most recent activity
+                e.volumeSpike if e.volumeSpike else 0,  # Tiebreaker: Highest spike
+                e.volume24hr                         # Tiebreaker: Highest volume
             ),
             reverse=True
         )

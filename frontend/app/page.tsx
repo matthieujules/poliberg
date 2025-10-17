@@ -37,9 +37,6 @@ export default function Home() {
   // Otherwise show dashboard
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50">
-      {/* Debug Console */}
-      <DebugConsole pollStatus={pollStatus} />
-
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">

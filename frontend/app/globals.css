@@ -187,6 +187,22 @@
     animation: slide-in-top 0.5s ease-out;
   }
 
+  /* Slow pulse animation for fresh events */
+  @keyframes pulse-slow {
+    0%, 100% {
+      opacity: 1;
+      box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+    }
+    50% {
+      opacity: 0.95;
+      box-shadow: 0 0 30px rgba(251, 191, 36, 0.5);
+    }
+  }
+
+  .animate-pulse-slow {
+    animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
   /* Focus visible styles */
   .focus-ring {
     @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
