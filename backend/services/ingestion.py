@@ -3,10 +3,11 @@
 import asyncio
 import httpx
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
+from collections import deque
 import logging
 
-from models import PolymarketEvent
+from models import PolymarketEvent, EventChange
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -81,9 +82,14 @@ class IngestionService:
     # Volume spike threshold: 50% increase over average
     VOLUME_SPIKE_THRESHOLD = 1.5
 
+    # Maximum changes to keep in history
+    MAX_CHANGES = 100
+
     def __init__(self):
         self.client = GammaMarketClient()
         self.events: Dict[str, PolymarketEvent] = {}
+        self.previous_spikes: Dict[str, float] = {}  # event_id -> previous spike ratio
+        self.changes: deque[EventChange] = deque(maxlen=self.MAX_CHANGES)  # Rolling log
         self.running = False
 
     def calculate_volume_spike(
@@ -187,6 +193,70 @@ class IngestionService:
             logger.warning(f"Failed to process market: {e}")
             return None
 
+    def detect_changes(self, new_events: List[PolymarketEvent]) -> List[EventChange]:
+        """
+        Detect changes between previous poll and current poll
+
+        Args:
+            new_events: Newly processed events
+
+        Returns:
+            List of EventChange objects describing what changed
+        """
+        changes = []
+        now = datetime.now(timezone.utc)  # Use UTC timezone-aware datetime
+
+        for event in new_events:
+            event_id = event.id
+            new_spike = event.volumeSpike
+            old_spike = self.previous_spikes.get(event_id)
+
+            # Determine change type
+            change_type = None
+
+            if old_spike is None and new_spike is not None:
+                # NEW spike detected
+                change_type = "new_spike"
+                logger.info(f"🆕 NEW SPIKE: {event.title[:50]}... ({new_spike:.1f}x)")
+
+            elif old_spike is not None and new_spike is not None:
+                # Spike exists, check if it changed
+                if new_spike > old_spike * 1.1:  # 10% increase threshold
+                    change_type = "spike_increased"
+                    logger.info(f"📈 SPIKE INCREASED: {event.title[:50]}... ({old_spike:.1f}x → {new_spike:.1f}x)")
+                elif new_spike < old_spike * 0.9:  # 10% decrease threshold
+                    change_type = "spike_decreased"
+                    logger.info(f"📉 SPIKE DECREASED: {event.title[:50]}... ({old_spike:.1f}x → {new_spike:.1f}x)")
+
+            elif old_spike is not None and new_spike is None:
+                # Spike was removed (fell below threshold)
+                change_type = "spike_removed"
+                logger.info(f"❌ SPIKE REMOVED: {event.title[:50]}... (was {old_spike:.1f}x)")
+
+            # Record change if detected
+            if change_type:
+                change = EventChange(
+                    eventId=event_id,
+                    eventTitle=event.title,
+                    changeType=change_type,
+                    timestamp=now,
+                    oldSpikeRatio=old_spike,
+                    newSpikeRatio=new_spike,
+                    volume24hr=event.volume24hr,
+                    probability=event.probability
+                )
+                changes.append(change)
+                self.changes.append(change)
+
+            # Update previous state
+            if new_spike is not None:
+                self.previous_spikes[event_id] = new_spike
+            elif event_id in self.previous_spikes:
+                # Remove from tracking if spike is gone
+                del self.previous_spikes[event_id]
+
+        return changes
+
     async def fetch_and_process_markets(self) -> List[PolymarketEvent]:
         """
         Fetch markets from API and process them
@@ -195,8 +265,9 @@ class IngestionService:
             List of processed PolymarketEvent objects
         """
         # Fetch markets sorted by 24hr volume (highest first)
+        # Monitoring top 500 most active markets
         markets = await self.client.get_markets(
-            limit=100,
+            limit=500,
             active=True,
             closed=False,
             archived=False,
@@ -212,7 +283,14 @@ class IngestionService:
                 events.append(event)
                 self.events[event.id] = event
 
-        logger.info(f"Processed {len(events)} events")
+        # Detect changes from previous poll
+        changes = self.detect_changes(events)
+
+        logger.info(
+            f"Processed {len(events)} events, "
+            f"detected {len(changes)} changes"
+        )
+
         return events
 
     def get_frontier_events(
@@ -245,6 +323,39 @@ class IngestionService:
         )
 
         return events[:limit]
+
+    def get_recent_changes(self, limit: int = 50) -> List[EventChange]:
+        """
+        Get recent changes detected in polling
+
+        Args:
+            limit: Maximum number of changes to return
+
+        Returns:
+            List of EventChange objects (most recent first)
+        """
+        # Convert deque to list and reverse (most recent first)
+        changes_list = list(self.changes)
+        changes_list.reverse()
+        return changes_list[:limit]
+
+    def get_changes_since(self, since: datetime) -> List[EventChange]:
+        """
+        Get changes since a specific timestamp
+
+        Args:
+            since: Timestamp to filter from
+
+        Returns:
+            List of EventChange objects after the timestamp
+        """
+        changes_list = [
+            change for change in self.changes
+            if change.timestamp > since
+        ]
+        # Most recent first
+        changes_list.reverse()
+        return changes_list
 
     async def start_polling(self, interval: int = 60):
         """

@@ -2,9 +2,11 @@
 
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
+from datetime import datetime
 
-from models import EventListResponse, PolymarketEvent
+from models import EventListResponse, PolymarketEvent, ChangesResponse, TickerSuggestion
 from services.ingestion import ingestion_service
+from services.asset_mapper import asset_mapper_service
 
 router = APIRouter()
 
@@ -34,34 +36,7 @@ async def get_frontier_events(
     )
 
 
-@router.get("/events/{event_id}", response_model=PolymarketEvent)
-async def get_event(event_id: str):
-    """
-    Get a specific event by ID
-    """
-    event = ingestion_service.events.get(event_id)
-
-    if not event:
-        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
-
-    return event
-
-
-@router.post("/events/{event_id}/lock")
-async def toggle_event_lock(event_id: str):
-    """
-    Toggle lock state for an event
-    """
-    event = ingestion_service.events.get(event_id)
-
-    if not event:
-        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
-
-    event.locked = not event.locked
-
-    return {"id": event_id, "locked": event.locked}
-
-
+# IMPORTANT: Specific routes must come BEFORE dynamic {event_id} routes
 @router.get("/events/spikes/summary")
 async def get_spike_summary():
     """
@@ -100,6 +75,32 @@ async def get_spike_summary():
     }
 
 
+@router.get("/events/changes", response_model=ChangesResponse)
+async def get_changes(
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of changes to return"),
+    since: Optional[str] = Query(None, description="ISO timestamp to filter from (e.g., 2025-10-17T12:00:00Z)"),
+):
+    """
+    Get recent changes detected in polling
+
+    Returns changes in reverse chronological order (most recent first).
+    Use 'since' parameter to get only changes after a specific timestamp.
+    """
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            changes = ingestion_service.get_changes_since(since_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid timestamp format. Use ISO format.")
+    else:
+        changes = ingestion_service.get_recent_changes(limit=limit)
+
+    return ChangesResponse(
+        changes=changes,
+        total=len(changes)
+    )
+
+
 @router.post("/refresh")
 async def force_refresh():
     """
@@ -113,3 +114,54 @@ async def force_refresh():
         "events_fetched": len(events),
         "spike_events": spike_count
     }
+
+
+# Dynamic routes with {event_id} must come AFTER specific routes
+@router.get("/events/{event_id}/tickers", response_model=list[TickerSuggestion])
+async def get_event_tickers(event_id: str):
+    """
+    Get GPT-mapped stock ticker suggestions for an event
+
+    Uses GPT-4o-mini to analyze the event and suggest 8 stock tickers
+    that would be most affected if the event were to occur.
+
+    Returns tickers ranked by impact score (confidence).
+    """
+    # Get the event
+    event = ingestion_service.events.get(event_id)
+
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    # Get ticker suggestions from GPT
+    tickers = await asset_mapper_service.get_tickers(event)
+
+    return tickers
+
+
+@router.get("/events/{event_id}", response_model=PolymarketEvent)
+async def get_event(event_id: str):
+    """
+    Get a specific event by ID
+    """
+    event = ingestion_service.events.get(event_id)
+
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    return event
+
+
+@router.post("/events/{event_id}/lock")
+async def toggle_event_lock(event_id: str):
+    """
+    Toggle lock state for an event
+    """
+    event = ingestion_service.events.get(event_id)
+
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+
+    event.locked = not event.locked
+
+    return {"id": event_id, "locked": event.locked}

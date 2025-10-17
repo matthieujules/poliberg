@@ -1,7 +1,7 @@
 """Data models for frontier events, news cards, and ticker suggestions."""
 
 from typing import List, Optional, Literal
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
 
@@ -44,7 +44,7 @@ class PolymarketEvent(BaseModel):
     # Derived fields
     category: str = Field(default="other")
     tags: List[str] = Field(default_factory=list)
-    detectedAt: datetime = Field(default_factory=datetime.now)
+    detectedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     locked: bool = False
 
     # Volume spike indicator (calculated)
@@ -89,3 +89,26 @@ class NewsCard(BaseModel):
     url: str
     relevanceScore: float = Field(ge=0, le=1)
     sentiment: Literal["positive", "negative", "neutral"]
+
+
+class EventChange(BaseModel):
+    """Represents a change detected in an event"""
+    eventId: str
+    eventTitle: str
+    changeType: Literal["new_spike", "spike_increased", "spike_decreased", "spike_removed"]
+    timestamp: datetime
+    oldSpikeRatio: Optional[float] = None
+    newSpikeRatio: Optional[float] = None
+    volume24hr: float
+    probability: float
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class ChangesResponse(BaseModel):
+    """Response for changes endpoint"""
+    changes: List[EventChange]
+    total: int
