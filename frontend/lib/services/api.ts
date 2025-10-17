@@ -261,3 +261,115 @@ export interface TickerSuggestion {
   direction: "bullish" | "bearish" | "neutral";
   relatedTags: string[];
 }
+
+// News-related interfaces
+export interface NewsScrapeRequest {
+  query: string;
+  max_items: number;
+  language: string;
+  time_range: string;
+  fetch_article_details: boolean;
+}
+
+export interface NewsScrapeResponse {
+  status: string;
+  query: string;
+  item_count: number;
+  items: any[];
+}
+
+export interface EventDetailResponse {
+  event: PolymarketEvent;
+  status: string;
+  news?: any[];
+  tickers?: TickerSuggestion[];
+  stockData?: Record<string, any>;
+  error?: string;
+}
+
+/**
+ * Scrape news using Apify's Google News scraper
+ */
+export async function scrapeNews(request: NewsScrapeRequest): Promise<NewsScrapeResponse> {
+  console.log(`[API] Scraping news for query:`, request.query);
+
+  try {
+    const url = `${API_BASE}/api/news/scrape`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: NewsScrapeResponse = await response.json();
+    console.log(`[API] Scraped ${data.item_count} news articles for query: ${data.query}`);
+
+    return data;
+  } catch (error) {
+    console.error("[API] Failed to scrape news:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get news for a specific event
+ */
+export async function fetchEventNews(
+  eventId: string,
+  maxItems: number = 6,
+  timeRange: string = "1d"
+): Promise<{ event_id: string; event_title: string; news_count: number; news: any[] }> {
+  console.log(`[API] Fetching news for event:`, eventId);
+
+  try {
+    const url = `${API_BASE}/api/events/${eventId}/news?max_items=${maxItems}&time_range=${timeRange}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log(`[API] Fetched ${data.news_count} news articles for event ${eventId}`);
+
+    return data;
+  } catch (error) {
+    console.error(`[API] Failed to fetch news for event ${eventId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Get detailed analysis for an event including news
+ */
+export async function fetchEventDetail(
+  eventId: string,
+  includeNews: boolean = true,
+  newsMaxItems: number = 6,
+  newsTimeRange: string = "1d"
+): Promise<EventDetailResponse> {
+  console.log(`[API] Fetching event detail for:`, eventId);
+
+  try {
+    const url = `${API_BASE}/api/events/${eventId}/detail?include_news=${includeNews}&news_max_items=${newsMaxItems}&news_time_range=${newsTimeRange}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: EventDetailResponse = await response.json();
+    console.log(`[API] Fetched event detail for ${eventId} with status: ${data.status}`);
+
+    return data;
+  } catch (error) {
+    console.error(`[API] Failed to fetch event detail for ${eventId}:`, error);
+    throw error;
+  }
+}
