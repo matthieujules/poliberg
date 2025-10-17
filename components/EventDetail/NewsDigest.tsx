@@ -59,7 +59,7 @@ export function NewsDigest({ news }: NewsDigestProps) {
     <div className="space-y-4">
       <div>
         <h3 className="text-xl font-bold mb-2">Related News</h3>
-        <p className="text-sm text-slate-300">
+        <p className="text-sm text-foreground">
           {sortedNews.length} recent articles related to this event
         </p>
       </div>
@@ -77,7 +77,7 @@ export function NewsDigest({ news }: NewsDigestProps) {
             <CardContent className="p-4">
               <div className="space-y-2">
                 {/* Header: Source + Time */}
-                <div className="flex items-center gap-2 text-xs text-slate-300">
+                <div className="flex items-center gap-2 text-xs text-foreground/80">
                   <span className="font-medium">{article.source}</span>
                   <span>•</span>
                   <span title={format(new Date(article.publishedAt), "PPpp")}>
@@ -92,7 +92,7 @@ export function NewsDigest({ news }: NewsDigestProps) {
                 </h4>
 
                 {/* Snippet */}
-                <p className="text-xs text-slate-200 line-clamp-3">{article.snippet}</p>
+                <p className="text-sm text-foreground line-clamp-3">{article.snippet}</p>
 
                 {/* Footer: Sentiment + Relevance */}
                 <div className="flex items-center justify-between">
@@ -116,11 +116,11 @@ export function NewsDigest({ news }: NewsDigestProps) {
           {active && (
             <div className="space-y-4">
               <DialogHeader>
-                <DialogTitle className="text-base sm:text-lg line-clamp-3">
+                <DialogTitle className="text-base sm:text-lg line-clamp-3 text-foreground">
                   {active.title}
                 </DialogTitle>
                 <DialogDescription>
-                  <span className="font-medium text-slate-300">
+                  <span className="font-medium text-foreground/80">
                     {active.source}
                   </span>
                   <span className="mx-2">•</span>
@@ -129,7 +129,7 @@ export function NewsDigest({ news }: NewsDigestProps) {
                   </span>
                 </DialogDescription>
               </DialogHeader>
-              <div className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">
+              <div className="text-base text-foreground whitespace-pre-wrap leading-relaxed">
                 {active.snippet || "No preview available."}
               </div>
               <div className="flex items-center justify-end gap-2">
